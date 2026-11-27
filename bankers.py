@@ -1,12 +1,20 @@
 import os
 import sys
 
-# This machine's python312._pth runs Python in isolated mode, so the script's
-# own directory is not on sys.path and sibling imports would fail.
+# Make sibling imports work when Python runs in isolated mode.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from bankers_algo import check_request, safety
-from bankers_io import read_int, read_vec, show
+from bankers_algo import check_max, check_request, check_totals, derive, release, safety
+from bankers_io import format_state, read_int, read_vec
+
+
+def report(title, total, alloc, maxim, check_safety=False):
+    need, avail = derive(total, alloc, maxim)
+    print(format_state(title, total, alloc, maxim, need, avail))
+    if check_safety:
+        log = []
+        safety(need, alloc, avail, log)
+        print('\n'.join(log))
 
 
 def main():
@@ -16,33 +24,40 @@ def main():
     while True:
         total = read_vec('Total: ', m)
         alloc = [read_vec('Allocation P%d: ' % p, m) for p in range(n)]
-        if all(sum(alloc[p][r] for p in range(n)) <= total[r] for r in range(m)):
+        error = check_totals(total, alloc)
+        if not error:
             break
-        print('  allocation exceeds total, re-enter')
+        print('  %s, re-enter' % error)
     while True:
         maxim = [read_vec('Max P%d: ' % p, m) for p in range(n)]
-        if all(alloc[p][r] <= maxim[p][r] for p in range(n) for r in range(m)):
+        error = check_max(total, alloc, maxim)
+        if not error:
             break
-        print('  allocation exceeds max, re-enter')
-    need = [[maxim[p][r] - alloc[p][r] for r in range(m)] for p in range(n)]
-    avail = [total[r] - sum(alloc[p][r] for p in range(n)) for r in range(m)]
-    show('Initial state', total, alloc, maxim, need, avail)
-    safety(need, alloc, avail)
+        print('  %s, re-enter' % error)
+    report('Initial state', total, alloc, maxim, check_safety=True)
     while True:
-        cmd = input('\n[r]equest [s]how [q]uit: ').strip().lower()
+        cmd = input('\n[r]equest re[l]ease [s]how [q]uit: ').strip().lower()
         if cmd == 'q':
             break
         if cmd == 's':
-            show('Current state', total, alloc, maxim, need, avail)
-            safety(need, alloc, avail)
-        elif cmd == 'r':
+            report('Current state', total, alloc, maxim, check_safety=True)
+        elif cmd in ('r', 'l'):
             p = read_int('Process: ', 0, n - 1)
-            req = read_vec('Request for P%d: ' % p, m)
-            alloc, need, avail = check_request(p, req, total, alloc, need, avail, maxim)
-            show('Current state', total, alloc, maxim, need, avail)
+            log = []
+            if cmd == 'r':
+                req = read_vec('Request for P%d: ' % p, m)
+                alloc = check_request(p, req, total, alloc, maxim, log)[1]
+            else:
+                rel = read_vec('Release from P%d: ' % p, m)
+                alloc = release(p, rel, alloc, log)[1]
+            print('\n'.join(log))
+            report('Current state', total, alloc, maxim)
         else:
             print('  unknown command')
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except (KeyboardInterrupt, EOFError):
+        print('\nExiting.')

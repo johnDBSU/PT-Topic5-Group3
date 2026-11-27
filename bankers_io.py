@@ -32,16 +32,13 @@ def read_vec(prompt, size):
         return v
 
 
-def show(title, total, alloc, maxim, need, avail):
-    print('\n' + title)
-    print('Total     ', fmt(total))
-    print('Allocation')
-    for i, row in enumerate(alloc):
-        print('  P%d %s' % (i, fmt(row)))
-    print('Max')
-    for i, row in enumerate(maxim):
-        print('  P%d %s' % (i, fmt(row)))
-    print('Need')
-    for i, row in enumerate(need):
-        print('  P%d %s' % (i, fmt(row)))
-    print('Available ', fmt(avail))
+def format_state(title, total, alloc, maxim, need, avail):
+    """One row per process: Allocation, Max and Need side by side."""
+    width = max(12, len(fmt(total)) + 2, *(len(fmt(row)) + 2 for row in maxim))
+    row_fmt = '  %-5s' + ('%%-%ds' % width) * 3
+    lines = ['\n' + title, 'Total     ' + fmt(total),
+             row_fmt % ('', 'Allocation', 'Max', 'Need')]
+    for i in range(len(alloc)):
+        lines.append(row_fmt % ('P%d' % i, fmt(alloc[i]), fmt(maxim[i]), fmt(need[i])))
+    lines.append('Available ' + fmt(avail))
+    return '\n'.join(line.rstrip() for line in lines)
