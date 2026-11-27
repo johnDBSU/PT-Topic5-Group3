@@ -21,8 +21,9 @@ class BankersApp:
         root.title("Banker's Algorithm")
         self.n = tk.StringVar(value='5')
         self.m = tk.StringVar(value='3')
+        body = self.make_scrollable()
 
-        top = ttk.Frame(root, padding=8)
+        top = ttk.Frame(body, padding=8)
         top.pack(fill='x')
         for text, var in (('Processes', self.n), ('Resources', self.m)):
             ttk.Label(top, text=text).pack(side='left')
@@ -30,10 +31,10 @@ class BankersApp:
         ttk.Button(top, text='Create tables', command=self.create_tables).pack(side='left')
         ttk.Button(top, text='Load example', command=self.load_example).pack(side='left', padx=6)
 
-        self.tables = ttk.Frame(root, padding=8)
+        self.tables = ttk.Frame(body, padding=8)
         self.tables.pack(fill='x')
 
-        controls = ttk.Frame(root, padding=8)
+        controls = ttk.Frame(body, padding=8)
         controls.pack(fill='x')
         self.start_button = ttk.Button(controls, text='Check safety', command=self.check_safety)
         self.start_button.grid(row=0, column=0, sticky='w')
@@ -49,12 +50,57 @@ class BankersApp:
         self.release_button = ttk.Button(controls, text='Release', command=self.release)
         self.release_button.grid(row=1, column=4)
 
-        self.status = tk.Label(root, anchor='w', padx=8, font=('TkDefaultFont', 11, 'bold'))
+        self.status = tk.Label(body, anchor='w', padx=8, font=('TkDefaultFont', 11, 'bold'))
         self.status.pack(fill='x')
-        self.log = ScrolledText(root, height=16, width=80, font='TkFixedFont', state='disabled')
+        self.log = ScrolledText(body, height=16, width=80, font='TkFixedFont', state='disabled')
         self.log.pack(fill='both', expand=True, padx=8, pady=8)
 
         self.create_tables()
+        self.fit_window()
+
+    # ---- scrolling ----
+    def make_scrollable(self):
+        """Return a frame that scrolls both ways when the window is too small."""
+        self.canvas = tk.Canvas(self.root, highlightthickness=0)
+        ybar = ttk.Scrollbar(self.root, orient='vertical', command=self.canvas.yview)
+        xbar = ttk.Scrollbar(self.root, orient='horizontal', command=self.canvas.xview)
+        self.canvas.configure(yscrollcommand=ybar.set, xscrollcommand=xbar.set)
+        self.canvas.grid(row=0, column=0, sticky='nsew')
+        ybar.grid(row=0, column=1, sticky='ns')
+        xbar.grid(row=1, column=0, sticky='ew')
+        self.root.rowconfigure(0, weight=1)
+        self.root.columnconfigure(0, weight=1)
+        self.body = ttk.Frame(self.canvas)
+        self.window = self.canvas.create_window(0, 0, window=self.body, anchor='nw')
+        self.body.bind('<Configure>', self.update_scroll)
+        self.canvas.bind('<Configure>', self.update_scroll)
+        for event in ('<MouseWheel>', '<Button-4>', '<Button-5>'):
+            self.root.bind_all(event, self.on_wheel)
+        return self.body
+
+    def update_scroll(self, event=None):
+        # Stretch the content to fill a large window; scroll in a small one.
+        width = max(self.canvas.winfo_width(), self.body.winfo_reqwidth())
+        height = max(self.canvas.winfo_height(), self.body.winfo_reqheight())
+        self.canvas.itemconfigure(self.window, width=width, height=height)
+        self.canvas.configure(scrollregion=(0, 0, width, height))
+
+    def on_wheel(self, event):
+        """Wheel scrolls up and down; Shift + wheel scrolls sideways."""
+        if event.widget is self.log:
+            return  # the log scrolls itself
+        step = -1 if event.num == 4 or event.delta > 0 else 1
+        sideways = event.state & 0x0001
+        view = self.canvas.xview if sideways else self.canvas.yview
+        if view() != (0.0, 1.0):
+            (self.canvas.xview_scroll if sideways else self.canvas.yview_scroll)(step * 3, 'units')
+
+    def fit_window(self):
+        """Open at the content's size, but never larger than the screen."""
+        self.root.update_idletasks()
+        width = min(self.body.winfo_reqwidth() + 20, self.root.winfo_screenwidth() - 80)
+        height = min(self.body.winfo_reqheight() + 20, self.root.winfo_screenheight() - 120)
+        self.root.geometry('%dx%d' % (width, height))
 
     # ---- building the tables ----
     def create_tables(self):
@@ -86,6 +132,11 @@ class BankersApp:
         self.state = None
         self.set_running(False)
         self.set_status('Enter Total, Allocation and Max, then press Check safety.', BLACK)
+        # New tables change the content size, so recompute and go to the top left.
+        self.root.update_idletasks()
+        self.update_scroll()
+        self.canvas.xview_moveto(0)
+        self.canvas.yview_moveto(0)
 
     def grid_block(self, title, row, col, n, m, names, readonly=False):
         box = ttk.LabelFrame(self.tables, text=title, padding=4)

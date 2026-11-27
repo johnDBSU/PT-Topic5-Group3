@@ -105,4 +105,4 @@ Try these requests in order:
 
 - No build step or installation of packages is needed.
 - Processes and resources are numbered from 0 (`P0`, `R0`).
-- The GUI does not scroll, so large tables may not fit on a small screen.
+- The GUI scrolls when the tables are larger than the window: use the scrollbars or the mouse wheel (Shift + wheel to move sideways).
